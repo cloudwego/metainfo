@@ -1,0 +1,24 @@
+[package]
+name = "metainfo"
+version = "0.6.2"
+authors = ["Volo Team <volo@cloudwego.io>"]
+edition = "2021"
+description = "Transmissing metainfo across components."
+readme = "README.md"
+homepage = "https://www.cloudwego.io/docs/volo/"
+repository = "https://github.com/cloudwego/metainfo"
+license = "MIT OR Apache-2.0"
+keywords = ["context", "metainfo", "metadata"]
+categories = ["accessibility", "rust-patterns", "concurrency"]
+
+[badges]
+maintenance = { status = "actively-developed" }
+
+[dependencies]
+fxhash = "0.2"
+paste = "1"
+tokio = { version = "1", optional = true }
+
+[features]
+default = ["task_local"]
+task_local = ["tokio", "tokio/rt"]
