@@ -21,6 +21,7 @@ tokio::task_local! {
 }
 
 /// Framework should all obey these prefixes.
+
 pub const RPC_PREFIX_PERSISTENT: &str = "RPC_PERSIST_";
 pub const RPC_PREFIX_TRANSIENT: &str = "RPC_TRANSIT_";
 pub const RPC_PREFIX_BACKWARD: &str = "RPC_BACKWARD_";
@@ -204,6 +205,7 @@ impl MetaInfo {
     }
 
     /// Clear the `MetaInfo` of all inserted MetaInfo.
+    /// This will not clear the parent.
     #[inline]
     pub fn clear(&mut self) {
         if let Some(tmap) = self.tmap.as_mut() {
@@ -212,6 +214,8 @@ impl MetaInfo {
         if let Some(smap) = self.smap.as_mut() {
             smap.clear()
         }
+        self.forward_node = None;
+        self.backward_node = None;
     }
 
     /// Extends self with the items from another `MetaInfo`.
