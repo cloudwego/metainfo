@@ -1,6 +1,6 @@
 [package]
 name = "metainfo"
-version = "0.6.2"
+version = "0.6.3"
 authors = ["Volo Team <volo@cloudwego.io>"]
 edition = "2021"
 description = "Transmissing metainfo across components."
