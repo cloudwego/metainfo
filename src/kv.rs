@@ -1,5 +1,6 @@
-use std::{borrow::Cow, collections::HashMap};
+use std::collections::HashMap;
 
+use faststr::FastStr;
 use paste::paste;
 
 const DEFAULT_CAPACITY: usize = 10; // maybe enough for most cases?
@@ -7,7 +8,7 @@ const DEFAULT_CAPACITY: usize = 10; // maybe enough for most cases?
 macro_rules! set_impl {
     ($name:ident) => {
         paste! {
-            pub fn [<set_ $name>]<K: Into<Cow<'static, str>>, V: Into<Cow<'static, str>>>(
+            pub fn [<set_ $name>]<K: Into<FastStr>, V: Into<FastStr>>(
                 &mut self,
                 key: K,
                 value: V,
@@ -24,10 +25,12 @@ macro_rules! set_impl {
 macro_rules! del_impl {
     ($name:ident) => {
         paste! {
-            pub fn [<del_ $name>]<K: AsRef<str>>(&mut self, key: K) {
+            pub fn [<del_ $name>]<K: AsRef<str>>(&mut self, key: K) -> Option<FastStr> {
                 let key = key.as_ref();
                 if let Some(v) = self.$name.as_mut() {
-                    v.remove(key);
+                    v.remove(key)
+                } else {
+                    None
                 }
             }
         }
@@ -37,11 +40,11 @@ macro_rules! del_impl {
 macro_rules! get_impl {
     ($name:ident) => {
         paste! {
-            pub fn [<get_ $name>]<K: AsRef<str>>(&self, key: K) -> Option<&str> {
+            pub fn [<get_ $name>]<K: AsRef<str>>(&self, key: K) -> Option<FastStr> {
                 let key = key.as_ref();
                 match self.$name.as_ref() {
                     Some(v) => {
-                        v.get(key).map(|v| v.as_ref())
+                        v.get(key).cloned()
                     }
                     None => None,
                 }
@@ -53,7 +56,7 @@ macro_rules! get_impl {
 macro_rules! get_all_impl {
     ($name:ident) => {
         paste! {
-            pub fn [<get_all_ $name s>](&self) -> Option<&HashMap<Cow<'static, str>, Cow<'static, str>>> {
+            pub fn [<get_all_ $name s>](&self) -> Option<&HashMap<FastStr, FastStr>> {
                 self.$name.as_ref()
             }
         }
@@ -62,10 +65,10 @@ macro_rules! get_all_impl {
 
 #[derive(Debug, Default, Clone)]
 pub struct Node {
-    persistent: Option<HashMap<Cow<'static, str>, Cow<'static, str>>>,
-    transient: Option<HashMap<Cow<'static, str>, Cow<'static, str>>>,
+    persistent: Option<HashMap<FastStr, FastStr>>,
+    transient: Option<HashMap<FastStr, FastStr>>,
     // this is called stale because upstream and downstream all use this.
-    stale: Option<HashMap<Cow<'static, str>, Cow<'static, str>>>,
+    stale: Option<HashMap<FastStr, FastStr>>,
 }
 
 impl Node {
@@ -120,6 +123,6 @@ mod tests {
     fn test_add_stale() {
         let mut node = Node::default();
         node.set_stale("key", "value");
-        println!("{:?}", node);
+        println!("{node:?}");
     }
 }

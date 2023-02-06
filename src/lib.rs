@@ -1,7 +1,8 @@
 mod type_map;
 
-use std::{borrow::Cow, collections::HashMap, fmt, sync::Arc};
+use std::{collections::HashMap, fmt, sync::Arc};
 
+use faststr::FastStr;
 use fxhash::FxHashMap;
 use kv::Node;
 use paste::paste;
@@ -62,7 +63,7 @@ pub struct MetaInfo {
     /// we search it in the parent scope.
     parent: Option<Arc<MetaInfo>>,
     tmap: Option<TypeMap>,
-    smap: Option<FxHashMap<Cow<'static, str>, Cow<'static, str>>>, // for str k-v
+    smap: Option<FxHashMap<FastStr, FastStr>>, // for str k-v
 
     /// for information transport through client and server.
     /// e.g. RPC
@@ -127,7 +128,7 @@ impl MetaInfo {
 
     /// Insert a string k-v into this `MetaInfo`.
     #[inline]
-    pub fn insert_string(&mut self, key: Cow<'static, str>, val: Cow<'static, str>) {
+    pub fn insert_string(&mut self, key: FastStr, val: FastStr) {
         self.smap
             .get_or_insert_with(FxHashMap::default)
             .insert(key, val);
@@ -152,11 +153,11 @@ impl MetaInfo {
 
     /// Check if `MetaInfo` contains the given string k-v
     #[inline]
-    pub fn contains_string(&self, key: &str) -> bool {
+    pub fn contains_string<K: AsRef<str>>(&self, key: K) -> bool {
         if self
             .smap
             .as_ref()
-            .map(|smap| smap.contains_key(key))
+            .map(|smap| smap.contains_key(key.as_ref()))
             .unwrap_or(false)
         {
             return true;
@@ -186,10 +187,10 @@ impl MetaInfo {
 
     /// Get a reference to a string k-v previously inserted on this `MetaInfo`.
     #[inline]
-    pub fn get_string(&self, key: &str) -> Option<&Cow<'static, str>> {
+    pub fn get_string<K: AsRef<str>>(&self, key: K) -> Option<&FastStr> {
         self.smap
             .as_ref()
-            .and_then(|smap| smap.get(key))
+            .and_then(|smap| smap.get(key.as_ref()))
             .or_else(|| {
                 self.parent
                     .as_ref()
@@ -200,8 +201,10 @@ impl MetaInfo {
     /// Remove a string k-v from this `MetaInfo` and return it.
     /// Can only remove the type in the current scope.
     #[inline]
-    pub fn remove_string(&mut self, key: &str) -> Option<Cow<'static, str>> {
-        self.smap.as_mut().and_then(|smap| smap.remove(key))
+    pub fn remove_string<K: AsRef<str>>(&mut self, key: K) -> Option<FastStr> {
+        self.smap
+            .as_mut()
+            .and_then(|smap| smap.remove(key.as_ref()))
     }
 
     /// Clear the `MetaInfo` of all inserted MetaInfo.
@@ -265,7 +268,7 @@ impl MetaInfo {
 macro_rules! get_impl {
     ($name:ident,$node:ident,$func_name:ident) => {
         paste! {
-            fn [<get_ $name>]<K: AsRef<str>>(&self, key: K) -> Option<&str> {
+            fn [<get_ $name>]<K: AsRef<str>>(&self, key: K) -> Option<FastStr> {
                 match self.[<$node _node>].as_ref() {
                     Some(node) => node.[<get_ $func_name>](key),
                     None => None,
@@ -278,7 +281,7 @@ macro_rules! get_impl {
 macro_rules! set_impl {
     ($name:ident,$node:ident,$func_name:ident) => {
         paste! {
-            fn [<set_ $name>]<K: Into<Cow<'static, str>>, V: Into<Cow<'static, str>>>(
+            fn [<set_ $name>]<K: Into<FastStr>, V: Into<FastStr>>(
                 &mut self,
                 key: K,
                 value: V,
@@ -296,9 +299,11 @@ macro_rules! set_impl {
 macro_rules! del_impl {
     ($name:ident,$node:ident,$func_name:ident) => {
         paste! {
-            fn [<del_ $name>]<K: AsRef<str>>(&mut self, key: K) {
+            fn [<del_ $name>]<K: AsRef<str>>(&mut self, key: K) -> Option<FastStr> {
                 if let Some(node) = self.[<$node _node>].as_mut() {
                     node.[<del_ $func_name>](key)
+                } else {
+                    None
                 }
             }
         }
@@ -318,75 +323,66 @@ impl forward::Forward for MetaInfo {
     del_impl!(transient, forward, transient);
     del_impl!(upstream, forward, stale);
 
-    fn get_all_persistents(&self) -> Option<&HashMap<Cow<'static, str>, Cow<'static, str>>> {
+    fn get_all_persistents(&self) -> Option<&HashMap<FastStr, FastStr>> {
         match self.forward_node.as_ref() {
             Some(node) => node.get_all_persistents(),
             None => None,
         }
     }
 
-    fn get_all_transients(&self) -> Option<&HashMap<Cow<'static, str>, Cow<'static, str>>> {
+    fn get_all_transients(&self) -> Option<&HashMap<FastStr, FastStr>> {
         match self.forward_node.as_ref() {
             Some(node) => node.get_all_transients(),
             None => None,
         }
     }
 
-    fn get_all_upstreams(&self) -> Option<&HashMap<Cow<'static, str>, Cow<'static, str>>> {
+    fn get_all_upstreams(&self) -> Option<&HashMap<FastStr, FastStr>> {
         match self.forward_node.as_ref() {
             Some(node) => node.get_all_stales(),
             None => None,
         }
     }
 
-    fn strip_rpc_prefix_and_set_persistent<
-        K: Into<Cow<'static, str>>,
-        V: Into<Cow<'static, str>>,
-    >(
+    fn strip_rpc_prefix_and_set_persistent<K: Into<FastStr>, V: Into<FastStr>>(
         &mut self,
         key: K,
         value: V,
     ) {
-        let key: Cow<'static, str> = key.into();
+        let key: FastStr = key.into();
         if let Some(key) = key.strip_prefix(crate::RPC_PREFIX_PERSISTENT) {
             self.set_persistent(key.to_owned(), value);
         }
     }
 
-    fn strip_rpc_prefix_and_set_upstream<K: Into<Cow<'static, str>>, V: Into<Cow<'static, str>>>(
+    fn strip_rpc_prefix_and_set_upstream<K: Into<FastStr>, V: Into<FastStr>>(
         &mut self,
         key: K,
         value: V,
     ) {
-        let key: Cow<'static, str> = key.into();
+        let key: FastStr = key.into();
         if let Some(key) = key.strip_prefix(crate::RPC_PREFIX_TRANSIENT) {
             self.set_upstream(key.to_owned(), value);
         }
     }
 
-    fn strip_http_prefix_and_set_persistent<
-        K: Into<Cow<'static, str>>,
-        V: Into<Cow<'static, str>>,
-    >(
+    fn strip_http_prefix_and_set_persistent<K: Into<FastStr>, V: Into<FastStr>>(
         &mut self,
         key: K,
         value: V,
     ) {
-        let key: Cow<'static, str> = key.into();
+        let key: FastStr = key.into();
         if let Some(key) = key.strip_prefix(crate::HTTP_PREFIX_PERSISTENT) {
             self.set_persistent(key.to_owned(), value);
         }
     }
 
-    fn strip_http_prefix_and_set_upstream<
-        K: Into<Cow<'static, str>>,
-        V: Into<Cow<'static, str>>,
-    >(
+    fn strip_http_prefix_and_set_upstream<K: Into<FastStr>, V: Into<FastStr>>(
         &mut self,
         key: K,
         value: V,
     ) {
-        let key: Cow<'static, str> = key.into();
+        let key: FastStr = key.into();
         if let Some(key) = key.strip_prefix(crate::HTTP_PREFIX_TRANSIENT) {
             self.set_upstream(key.to_owned(), value);
         }
@@ -403,47 +399,37 @@ impl backward::Backward for MetaInfo {
     del_impl!(backward_transient, backward, transient);
     del_impl!(backward_downstream, backward, stale);
 
-    fn get_all_backward_transients(
-        &self,
-    ) -> Option<&HashMap<Cow<'static, str>, Cow<'static, str>>> {
+    fn get_all_backward_transients(&self) -> Option<&HashMap<FastStr, FastStr>> {
         match self.backward_node.as_ref() {
             Some(node) => node.get_all_transients(),
             None => None,
         }
     }
 
-    fn get_all_backward_downstreams(
-        &self,
-    ) -> Option<&HashMap<Cow<'static, str>, Cow<'static, str>>> {
+    fn get_all_backward_downstreams(&self) -> Option<&HashMap<FastStr, FastStr>> {
         match self.backward_node.as_ref() {
             Some(node) => node.get_all_stales(),
             None => None,
         }
     }
 
-    fn strip_rpc_prefix_and_set_backward_downstream<
-        K: Into<Cow<'static, str>>,
-        V: Into<Cow<'static, str>>,
-    >(
+    fn strip_rpc_prefix_and_set_backward_downstream<K: Into<FastStr>, V: Into<FastStr>>(
         &mut self,
         key: K,
         value: V,
     ) {
-        let key: Cow<'static, str> = key.into();
+        let key: FastStr = key.into();
         if let Some(key) = key.strip_prefix(crate::RPC_PREFIX_BACKWARD) {
             self.set_backward_downstream(key.to_owned(), value);
         }
     }
 
-    fn strip_http_prefix_and_set_backward_downstream<
-        K: Into<Cow<'static, str>>,
-        V: Into<Cow<'static, str>>,
-    >(
+    fn strip_http_prefix_and_set_backward_downstream<K: Into<FastStr>, V: Into<FastStr>>(
         &mut self,
         key: K,
         value: V,
     ) {
-        let key: Cow<'static, str> = key.into();
+        let key: FastStr = key.into();
         if let Some(key) = key.strip_prefix(crate::HTTP_PREFIX_BACKWARD) {
             self.set_backward_downstream(key.to_owned(), value);
         }
