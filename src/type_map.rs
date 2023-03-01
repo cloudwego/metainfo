@@ -15,12 +15,51 @@ pub struct Entry<'a, K: 'a, V: 'a> {
 
 impl<'a, K, V> Entry<'a, K, V> {
     #[inline]
+    pub fn or_insert(self, default: V) -> &'a mut V
+    where
+        V: Send + Sync + 'static,
+    {
+        let v = self.inner.or_insert(Box::new(default));
+        v.downcast_mut().unwrap()
+    }
+
+    #[inline]
     pub fn or_insert_with<F: FnOnce() -> V>(self, default: F) -> &'a mut V
     where
         V: Send + Sync + 'static,
     {
         let v = self.inner.or_insert_with(|| Box::new(default()));
         v.downcast_mut().unwrap()
+    }
+
+    #[inline]
+    pub fn or_insert_with_key<F: FnOnce(&K) -> V>(self, default: F) -> &'a mut V
+    where
+        V: Send + Sync + 'static,
+    {
+        let v = self.inner.or_insert_with_key(|key| Box::new(default(key)));
+        v.downcast_mut().unwrap()
+    }
+
+    #[inline]
+    pub fn and_modify<F: FnOnce(&mut V)>(self, f: F) -> Self
+    where
+        V: Send + Sync + 'static,
+    {
+        Entry {
+            inner: self.inner.and_modify(|v| {
+                f(v.downcast_mut().unwrap());
+            }),
+            _marker: PhantomData,
+        }
+    }
+
+    #[inline]
+    pub fn or_default(self) -> &'a mut V
+    where
+        V: Default + Send + Sync + 'static,
+    {
+        self.or_insert(V::default())
     }
 }
 
@@ -40,6 +79,13 @@ impl TypeMap {
         self.inner
             .get(&TypeId::of::<T>())
             .and_then(|boxed| boxed.downcast_ref())
+    }
+
+    #[inline]
+    pub fn get_mut<T: 'static>(&mut self) -> Option<&mut T> {
+        self.inner
+            .get_mut(&TypeId::of::<T>())
+            .and_then(|boxed| boxed.downcast_mut())
     }
 
     #[inline]
