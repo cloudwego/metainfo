@@ -211,6 +211,7 @@ impl MetaInfo {
     /// This will not clear the parent.
     #[inline]
     pub fn clear(&mut self) {
+        self.parent = None;
         if let Some(tmap) = self.tmap.as_mut() {
             tmap.clear()
         }
