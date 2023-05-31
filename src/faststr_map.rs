@@ -70,4 +70,19 @@ impl FastStrMap {
     pub fn entry<T: 'static>(&mut self) -> Entry<'_, TypeId, FastStr> {
         self.inner.entry(TypeId::of::<T>())
     }
+
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.inner.is_empty()
+    }
+
+    #[inline]
+    pub fn len(&self) -> usize {
+        self.inner.len()
+    }
+
+    #[inline]
+    pub fn capacity(&self) -> usize {
+        self.inner.capacity()
+    }
 }
