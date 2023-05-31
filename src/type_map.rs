@@ -70,6 +70,20 @@ pub struct TypeMap {
 
 impl TypeMap {
     #[inline]
+    pub fn new() -> Self {
+        TypeMap {
+            inner: FxHashMap::default(),
+        }
+    }
+
+    #[inline]
+    pub fn with_capacity(capacity: usize) -> Self {
+        TypeMap {
+            inner: FxHashMap::with_capacity_and_hasher(capacity, Default::default()),
+        }
+    }
+
+    #[inline]
     pub fn insert<T: Send + Sync + 'static>(&mut self, t: T) {
         self.inner.insert(TypeId::of::<T>(), Box::new(t));
     }

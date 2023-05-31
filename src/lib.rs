@@ -1,8 +1,10 @@
+mod faststr_map;
 mod type_map;
 
 use std::{collections::HashMap, fmt, sync::Arc};
 
 use faststr::FastStr;
+pub use faststr_map::FastStrMap;
 use fxhash::FxHashMap;
 use kv::Node;
 use paste::paste;
@@ -29,6 +31,8 @@ pub const RPC_PREFIX_BACKWARD: &str = "RPC_BACKWARD_";
 pub const HTTP_PREFIX_PERSISTENT: &str = "rpc-persist-";
 pub const HTTP_PREFIX_TRANSIENT: &str = "rpc-transit-";
 pub const HTTP_PREFIX_BACKWARD: &str = "rpc-backward-";
+
+const DEFAULT_MAP_SIZE: usize = 10;
 
 /// `MetaInfo` is used to passthrough information between components and even client-server.
 ///
@@ -64,6 +68,7 @@ pub struct MetaInfo {
     parent: Option<Arc<MetaInfo>>,
     tmap: Option<TypeMap>,
     smap: Option<FxHashMap<FastStr, FastStr>>, // for str k-v
+    faststr_tmap: Option<FastStrMap>,          // for newtype wrapper of FastStr
 
     /// for information transport through client and server.
     /// e.g. RPC
@@ -91,6 +96,7 @@ impl MetaInfo {
             parent: Some(parent),
             tmap: None,
             smap: None,
+            faststr_tmap: None,
 
             forward_node,
             backward_node,
@@ -104,12 +110,13 @@ impl MetaInfo {
     /// This is the recommended way.
     #[inline]
     pub fn derive(self) -> (MetaInfo, MetaInfo) {
-        if self.tmap.is_none() && self.smap.is_none() {
+        if self.tmap.is_none() && self.smap.is_none() && self.faststr_tmap.is_none() {
             // we can use the same parent as self to make the tree small
             let new = MetaInfo {
                 parent: self.parent.clone(),
                 tmap: None,
                 smap: None,
+                faststr_tmap: None,
                 forward_node: self.forward_node.clone(),
                 backward_node: self.backward_node.clone(),
             };
@@ -123,14 +130,26 @@ impl MetaInfo {
     /// Insert a type into this `MetaInfo`.
     #[inline]
     pub fn insert<T: Send + Sync + 'static>(&mut self, val: T) {
-        self.tmap.get_or_insert_with(TypeMap::default).insert(val);
+        self.tmap
+            .get_or_insert_with(|| TypeMap::with_capacity(DEFAULT_MAP_SIZE))
+            .insert(val);
+    }
+
+    /// Insert a faststr newtype into this `MetaInfo`.
+    #[inline]
+    pub fn insert_faststr<T: Into<FastStr> + Send + Sync + 'static>(&mut self, val: T) {
+        self.faststr_tmap
+            .get_or_insert_with(|| FastStrMap::with_capacity(DEFAULT_MAP_SIZE))
+            .insert(val);
     }
 
     /// Insert a string k-v into this `MetaInfo`.
     #[inline]
     pub fn insert_string(&mut self, key: FastStr, val: FastStr) {
         self.smap
-            .get_or_insert_with(FxHashMap::default)
+            .get_or_insert_with(|| {
+                FxHashMap::with_capacity_and_hasher(DEFAULT_MAP_SIZE, Default::default())
+            })
             .insert(key, val);
     }
 
@@ -148,6 +167,23 @@ impl MetaInfo {
         self.parent
             .as_ref()
             .map(|parent| parent.as_ref().contains::<T>())
+            .unwrap_or(false)
+    }
+
+    /// Check if `MetaInfo` contains the given Faststr newtype
+    #[inline]
+    pub fn contains_faststr<T: 'static>(&self) -> bool {
+        if self
+            .faststr_tmap
+            .as_ref()
+            .map(|faststr_tmap| faststr_tmap.contains::<T>())
+            .unwrap_or(false)
+        {
+            return true;
+        }
+        self.parent
+            .as_ref()
+            .map(|parent| parent.as_ref().contains_faststr::<T>())
             .unwrap_or(false)
     }
 
@@ -185,6 +221,28 @@ impl MetaInfo {
         self.tmap.as_mut().and_then(|tmap| tmap.remove::<T>())
     }
 
+    /// Get a reference to a faststr newtype previously inserted on this `MetaInfo`.
+    #[inline]
+    pub fn get_faststr<T: 'static>(&self) -> Option<&FastStr> {
+        self.faststr_tmap
+            .as_ref()
+            .and_then(|faststr_tmap: &FastStrMap| faststr_tmap.get::<T>())
+            .or_else(|| {
+                self.parent
+                    .as_ref()
+                    .and_then(|parent| parent.as_ref().get_faststr::<T>())
+            })
+    }
+
+    /// Remove a faststr newtype from this `MetaInfo` and return it.
+    /// Can only remove the type in the current scope.
+    #[inline]
+    pub fn remove_faststr<T: 'static>(&mut self) -> Option<FastStr> {
+        self.faststr_tmap
+            .as_mut()
+            .and_then(|faststr_tmap| faststr_tmap.remove::<T>())
+    }
+
     /// Get a reference to a string k-v previously inserted on this `MetaInfo`.
     #[inline]
     pub fn get_string<K: AsRef<str>>(&self, key: K) -> Option<&FastStr> {
@@ -218,6 +276,9 @@ impl MetaInfo {
         if let Some(smap) = self.smap.as_mut() {
             smap.clear()
         }
+        if let Some(faststr_tmap) = self.faststr_tmap.as_mut() {
+            faststr_tmap.clear()
+        }
         self.forward_node = None;
         self.backward_node = None;
     }
@@ -227,13 +288,23 @@ impl MetaInfo {
     #[inline]
     pub fn extend(&mut self, other: MetaInfo) {
         if let Some(tmap) = other.tmap {
-            self.tmap.get_or_insert_with(TypeMap::default).extend(tmap);
+            self.tmap
+                .get_or_insert_with(|| TypeMap::with_capacity(DEFAULT_MAP_SIZE))
+                .extend(tmap);
         }
 
         if let Some(smap) = other.smap {
             self.smap
-                .get_or_insert_with(FxHashMap::default)
+                .get_or_insert_with(|| {
+                    FxHashMap::with_capacity_and_hasher(DEFAULT_MAP_SIZE, Default::default())
+                })
                 .extend(smap);
+        }
+
+        if let Some(faststr_tmap) = other.faststr_tmap {
+            self.faststr_tmap
+                .get_or_insert_with(|| FastStrMap::with_capacity(DEFAULT_MAP_SIZE))
+                .extend(faststr_tmap);
         }
 
         if let Some(node) = other.forward_node {

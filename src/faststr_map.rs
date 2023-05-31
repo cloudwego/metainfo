@@ -1,0 +1,73 @@
+use std::{any::TypeId, collections::hash_map::Entry};
+
+use faststr::FastStr;
+use fxhash::FxHashMap;
+
+/// This is an optimized version of TypeMap to FastStr that eliminates the need to Box the values.
+///
+/// This map is suitable for T that impls both From<FastStr> and Into<FastStr>.
+#[derive(Debug, Default)]
+pub struct FastStrMap {
+    inner: FxHashMap<TypeId, FastStr>,
+}
+
+impl FastStrMap {
+    #[inline]
+    pub fn new() -> Self {
+        Self {
+            inner: FxHashMap::default(),
+        }
+    }
+
+    #[inline]
+    pub fn with_capacity(capacity: usize) -> Self {
+        Self {
+            inner: FxHashMap::with_capacity_and_hasher(capacity, Default::default()),
+        }
+    }
+
+    #[inline]
+    pub fn insert<T: Into<FastStr> + Send + Sync + 'static>(&mut self, t: T) {
+        self.inner.insert(TypeId::of::<T>(), t.into());
+    }
+
+    #[inline]
+    pub fn get<T: 'static>(&self) -> Option<&FastStr> {
+        self.inner.get(&TypeId::of::<T>())
+    }
+
+    #[inline]
+    pub fn get_mut<T: 'static>(&mut self) -> Option<&mut FastStr> {
+        self.inner.get_mut(&TypeId::of::<T>())
+    }
+
+    #[inline]
+    pub fn contains<T: 'static>(&self) -> bool {
+        self.inner.contains_key(&TypeId::of::<T>())
+    }
+
+    #[inline]
+    pub fn remove<T: 'static>(&mut self) -> Option<FastStr> {
+        self.inner.remove(&TypeId::of::<T>())
+    }
+
+    #[inline]
+    pub fn clear(&mut self) {
+        self.inner.clear();
+    }
+
+    #[inline]
+    pub fn extend(&mut self, other: FastStrMap) {
+        self.inner.extend(other.inner)
+    }
+
+    #[inline]
+    pub fn iter(&self) -> ::std::collections::hash_map::Iter<'_, TypeId, FastStr> {
+        self.inner.iter()
+    }
+
+    #[inline]
+    pub fn entry<T: 'static>(&mut self) -> Entry<'_, TypeId, FastStr> {
+        self.inner.entry(TypeId::of::<T>())
+    }
+}
