@@ -137,10 +137,10 @@ impl MetaInfo {
 
     /// Insert a faststr newtype into this `MetaInfo`.
     #[inline]
-    pub fn insert_faststr<T: Into<FastStr> + Send + Sync + 'static>(&mut self, val: T) {
+    pub fn insert_faststr<T: Send + Sync + 'static>(&mut self, val: FastStr) {
         self.faststr_tmap
             .get_or_insert_with(|| FastStrMap::with_capacity(DEFAULT_MAP_SIZE))
-            .insert(val);
+            .insert::<T>(val);
     }
 
     /// Insert a string k-v into this `MetaInfo`.

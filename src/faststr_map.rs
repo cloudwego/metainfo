@@ -27,8 +27,8 @@ impl FastStrMap {
     }
 
     #[inline]
-    pub fn insert<T: Into<FastStr> + Send + Sync + 'static>(&mut self, t: T) {
-        self.inner.insert(TypeId::of::<T>(), t.into());
+    pub fn insert<T: Send + Sync + 'static>(&mut self, t: FastStr) {
+        self.inner.insert(TypeId::of::<T>(), t);
     }
 
     #[inline]
