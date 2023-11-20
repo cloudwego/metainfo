@@ -1,5 +1,4 @@
-use std::collections::HashMap;
-
+use ahash::AHashMap;
 use faststr::FastStr;
 use paste::paste;
 
@@ -14,7 +13,7 @@ macro_rules! set_impl {
                 value: V,
             ) {
                 if self.$name.is_none() {
-                    self.$name = Some(HashMap::with_capacity(DEFAULT_CAPACITY));
+                    self.$name = Some(AHashMap::with_capacity(DEFAULT_CAPACITY));
                 }
                 self.$name.as_mut().unwrap().insert(key.into(), value.into());
             }
@@ -56,7 +55,7 @@ macro_rules! get_impl {
 macro_rules! get_all_impl {
     ($name:ident) => {
         paste! {
-            pub fn [<get_all_ $name s>](&self) -> Option<&HashMap<FastStr, FastStr>> {
+            pub fn [<get_all_ $name s>](&self) -> Option<&AHashMap<FastStr, FastStr>> {
                 self.$name.as_ref()
             }
         }
@@ -65,10 +64,10 @@ macro_rules! get_all_impl {
 
 #[derive(Debug, Default, Clone)]
 pub struct Node {
-    persistent: Option<HashMap<FastStr, FastStr>>,
-    transient: Option<HashMap<FastStr, FastStr>>,
+    persistent: Option<AHashMap<FastStr, FastStr>>,
+    transient: Option<AHashMap<FastStr, FastStr>>,
     // this is called stale because upstream and downstream all use this.
-    stale: Option<HashMap<FastStr, FastStr>>,
+    stale: Option<AHashMap<FastStr, FastStr>>,
 }
 
 impl Node {

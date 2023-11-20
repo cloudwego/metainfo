@@ -1,8 +1,9 @@
 mod faststr_map;
 mod type_map;
 
-use std::{collections::HashMap, fmt, sync::Arc};
+use std::{fmt, sync::Arc};
 
+use ahash::AHashMap;
 use faststr::FastStr;
 pub use faststr_map::FastStrMap;
 use fxhash::FxHashMap;
@@ -12,7 +13,6 @@ pub use type_map::TypeMap;
 
 pub mod backward;
 pub mod forward;
-
 pub use backward::Backward;
 pub use forward::Forward;
 
@@ -395,21 +395,21 @@ impl forward::Forward for MetaInfo {
     del_impl!(transient, forward, transient);
     del_impl!(upstream, forward, stale);
 
-    fn get_all_persistents(&self) -> Option<&HashMap<FastStr, FastStr>> {
+    fn get_all_persistents(&self) -> Option<&AHashMap<FastStr, FastStr>> {
         match self.forward_node.as_ref() {
             Some(node) => node.get_all_persistents(),
             None => None,
         }
     }
 
-    fn get_all_transients(&self) -> Option<&HashMap<FastStr, FastStr>> {
+    fn get_all_transients(&self) -> Option<&AHashMap<FastStr, FastStr>> {
         match self.forward_node.as_ref() {
             Some(node) => node.get_all_transients(),
             None => None,
         }
     }
 
-    fn get_all_upstreams(&self) -> Option<&HashMap<FastStr, FastStr>> {
+    fn get_all_upstreams(&self) -> Option<&AHashMap<FastStr, FastStr>> {
         match self.forward_node.as_ref() {
             Some(node) => node.get_all_stales(),
             None => None,
@@ -471,14 +471,14 @@ impl backward::Backward for MetaInfo {
     del_impl!(backward_transient, backward, transient);
     del_impl!(backward_downstream, backward, stale);
 
-    fn get_all_backward_transients(&self) -> Option<&HashMap<FastStr, FastStr>> {
+    fn get_all_backward_transients(&self) -> Option<&AHashMap<FastStr, FastStr>> {
         match self.backward_node.as_ref() {
             Some(node) => node.get_all_transients(),
             None => None,
         }
     }
 
-    fn get_all_backward_downstreams(&self) -> Option<&HashMap<FastStr, FastStr>> {
+    fn get_all_backward_downstreams(&self) -> Option<&AHashMap<FastStr, FastStr>> {
         match self.backward_node.as_ref() {
             Some(node) => node.get_all_stales(),
             None => None,

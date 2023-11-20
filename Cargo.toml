@@ -1,6 +1,6 @@
 [package]
 name = "metainfo"
-version = "0.7.5"
+version = "0.7.6"
 authors = ["Volo Team <volo@cloudwego.io>"]
 edition = "2021"
 description = "Transmissing metainfo across components."
@@ -15,6 +15,7 @@ categories = ["accessibility", "rust-patterns", "concurrency"]
 maintenance = { status = "actively-developed" }
 
 [dependencies]
+ahash = "0.8"
 faststr = "0.2"
 fxhash = "0.2"
 paste = "1"

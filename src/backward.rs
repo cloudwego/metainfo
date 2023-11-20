@@ -1,5 +1,4 @@
-use std::collections::HashMap;
-
+use ahash::AHashMap;
 use faststr::FastStr;
 
 pub trait Backward {
@@ -7,8 +6,8 @@ pub trait Backward {
     fn get_backward_transient<K: AsRef<str>>(&self, key: K) -> Option<FastStr>;
     fn get_backward_downstream<K: AsRef<str>>(&self, key: K) -> Option<FastStr>;
 
-    fn get_all_backward_transients(&self) -> Option<&HashMap<FastStr, FastStr>>;
-    fn get_all_backward_downstreams(&self) -> Option<&HashMap<FastStr, FastStr>>;
+    fn get_all_backward_transients(&self) -> Option<&AHashMap<FastStr, FastStr>>;
+    fn get_all_backward_downstreams(&self) -> Option<&AHashMap<FastStr, FastStr>>;
 
     fn set_backward_transient<K: Into<FastStr>, V: Into<FastStr>>(&mut self, key: K, value: V);
     fn set_backward_downstream<K: Into<FastStr>, V: Into<FastStr>>(&mut self, key: K, value: V);
