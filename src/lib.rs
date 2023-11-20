@@ -6,7 +6,6 @@ use std::{fmt, sync::Arc};
 use ahash::AHashMap;
 use faststr::FastStr;
 pub use faststr_map::FastStrMap;
-use fxhash::FxHashMap;
 use kv::Node;
 use paste::paste;
 pub use type_map::TypeMap;
@@ -67,8 +66,8 @@ pub struct MetaInfo {
     /// we search it in the parent scope.
     parent: Option<Arc<MetaInfo>>,
     tmap: Option<TypeMap>,
-    smap: Option<FxHashMap<FastStr, FastStr>>, // for str k-v
-    faststr_tmap: Option<FastStrMap>,          // for newtype wrapper of FastStr
+    smap: Option<AHashMap<FastStr, FastStr>>, // for str k-v
+    faststr_tmap: Option<FastStrMap>,         // for newtype wrapper of FastStr
 
     /// for information transport through client and server.
     /// e.g. RPC
@@ -147,9 +146,7 @@ impl MetaInfo {
     #[inline]
     pub fn insert_string(&mut self, key: FastStr, val: FastStr) {
         self.smap
-            .get_or_insert_with(|| {
-                FxHashMap::with_capacity_and_hasher(DEFAULT_MAP_SIZE, Default::default())
-            })
+            .get_or_insert_with(|| AHashMap::with_capacity(DEFAULT_MAP_SIZE))
             .insert(key, val);
     }
 
@@ -295,9 +292,7 @@ impl MetaInfo {
 
         if let Some(smap) = other.smap {
             self.smap
-                .get_or_insert_with(|| {
-                    FxHashMap::with_capacity_and_hasher(DEFAULT_MAP_SIZE, Default::default())
-                })
+                .get_or_insert_with(|| AHashMap::with_capacity(DEFAULT_MAP_SIZE))
                 .extend(smap);
         }
 
