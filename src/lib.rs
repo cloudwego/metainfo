@@ -276,8 +276,12 @@ impl MetaInfo {
         if let Some(faststr_tmap) = self.faststr_tmap.as_mut() {
             faststr_tmap.clear()
         }
-        self.forward_node = None;
-        self.backward_node = None;
+        if let Some(forward_node) = self.forward_node.as_mut() {
+            forward_node.clear()
+        }
+        if let Some(backward_node) = self.backward_node.as_mut() {
+            backward_node.clear()
+        }
     }
 
     /// Extends self with the items from another `MetaInfo`.
