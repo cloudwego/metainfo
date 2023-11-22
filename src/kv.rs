@@ -112,6 +112,20 @@ impl Node {
             }
         }
     }
+
+    pub fn clear(&mut self) {
+        if let Some(v) = self.persistent.as_mut() {
+            v.clear();
+        }
+
+        if let Some(v) = self.transient.as_mut() {
+            v.clear();
+        }
+
+        if let Some(v) = self.stale.as_mut() {
+            v.clear();
+        }
+    }
 }
 
 #[cfg(test)]

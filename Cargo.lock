@@ -77,7 +77,7 @@ checksum = "89d92a4743f9a61002fae18374ed11e7973f530cb3a3255fb354818118b2203c"
 
 [[package]]
 name = "metainfo"
-version = "0.7.6"
+version = "0.7.7"
 dependencies = [
  "ahash",
  "faststr",
