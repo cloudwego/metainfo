@@ -401,6 +401,24 @@ impl forward::Forward for MetaInfo {
         }
     }
 
+    fn get_all_persistents_and_transients_with_rpc_prefix(
+        &self,
+    ) -> Option<AHashMap<FastStr, FastStr>> {
+        self.get_all_persistents_and_transients_with_prefix(
+            crate::RPC_PREFIX_PERSISTENT,
+            crate::RPC_PREFIX_TRANSIENT,
+        )
+    }
+
+    fn get_all_persistents_and_transients_with_http_prefix(
+        &self,
+    ) -> Option<AHashMap<FastStr, FastStr>> {
+        self.get_all_persistents_and_transients_with_prefix(
+            crate::HTTP_PREFIX_PERSISTENT,
+            crate::HTTP_PREFIX_TRANSIENT,
+        )
+    }
+
     fn get_all_transients(&self) -> Option<&AHashMap<FastStr, FastStr>> {
         match self.forward_node.as_ref() {
             Some(node) => node.get_all_transients(),
@@ -421,8 +439,8 @@ impl forward::Forward for MetaInfo {
         value: V,
     ) {
         let key: FastStr = key.into();
-        if let Some(key) = key.strip_prefix(crate::RPC_PREFIX_PERSISTENT) {
-            self.set_persistent(key.to_owned(), value);
+        if let Some(k) = key.strip_prefix(crate::RPC_PREFIX_PERSISTENT) {
+            self.set_persistent(key.slice_ref(k), value);
         }
     }
 
@@ -432,8 +450,8 @@ impl forward::Forward for MetaInfo {
         value: V,
     ) {
         let key: FastStr = key.into();
-        if let Some(key) = key.strip_prefix(crate::RPC_PREFIX_TRANSIENT) {
-            self.set_upstream(key.to_owned(), value);
+        if let Some(k) = key.strip_prefix(crate::RPC_PREFIX_TRANSIENT) {
+            self.set_upstream(key.slice_ref(k), value);
         }
     }
 
@@ -443,8 +461,8 @@ impl forward::Forward for MetaInfo {
         value: V,
     ) {
         let key: FastStr = key.into();
-        if let Some(key) = key.strip_prefix(crate::HTTP_PREFIX_PERSISTENT) {
-            self.set_persistent(key.to_owned(), value);
+        if let Some(k) = key.strip_prefix(crate::HTTP_PREFIX_PERSISTENT) {
+            self.set_persistent(key.slice_ref(k), value);
         }
     }
 
@@ -454,8 +472,8 @@ impl forward::Forward for MetaInfo {
         value: V,
     ) {
         let key: FastStr = key.into();
-        if let Some(key) = key.strip_prefix(crate::HTTP_PREFIX_TRANSIENT) {
-            self.set_upstream(key.to_owned(), value);
+        if let Some(k) = key.strip_prefix(crate::HTTP_PREFIX_TRANSIENT) {
+            self.set_upstream(key.slice_ref(k), value);
         }
     }
 }
@@ -484,14 +502,22 @@ impl backward::Backward for MetaInfo {
         }
     }
 
+    fn get_all_backward_transients_with_rpc_prefix(&self) -> Option<AHashMap<FastStr, FastStr>> {
+        self.get_all_backword_transients_with_prefix(crate::RPC_PREFIX_BACKWARD)
+    }
+
+    fn get_all_backward_transients_with_http_prefix(&self) -> Option<AHashMap<FastStr, FastStr>> {
+        self.get_all_backword_transients_with_prefix(crate::HTTP_PREFIX_BACKWARD)
+    }
+
     fn strip_rpc_prefix_and_set_backward_downstream<K: Into<FastStr>, V: Into<FastStr>>(
         &mut self,
         key: K,
         value: V,
     ) {
         let key: FastStr = key.into();
-        if let Some(key) = key.strip_prefix(crate::RPC_PREFIX_BACKWARD) {
-            self.set_backward_downstream(key.to_owned(), value);
+        if let Some(k) = key.strip_prefix(crate::RPC_PREFIX_BACKWARD) {
+            self.set_backward_downstream(key.slice_ref(k), value);
         }
     }
 
@@ -501,8 +527,76 @@ impl backward::Backward for MetaInfo {
         value: V,
     ) {
         let key: FastStr = key.into();
-        if let Some(key) = key.strip_prefix(crate::HTTP_PREFIX_BACKWARD) {
-            self.set_backward_downstream(key.to_owned(), value);
+        if let Some(k) = key.strip_prefix(crate::HTTP_PREFIX_BACKWARD) {
+            self.set_backward_downstream(key.slice_ref(k), value);
+        }
+    }
+}
+
+impl MetaInfo {
+    #[inline]
+    fn get_all_persistents_and_transients_with_prefix(
+        &self,
+        persistent_prefix: &str,
+        transient_prefix: &str,
+    ) -> Option<AHashMap<FastStr, FastStr>> {
+        match self.forward_node.as_ref() {
+            Some(node) => {
+                let persistents = node.get_all_persistents();
+                let transients = node.get_all_transients();
+                let new_cap = persistents.map(|p| p.len()).unwrap_or(0)
+                    + transients.map(|t| t.len()).unwrap_or(0);
+                if new_cap == 0 {
+                    return None;
+                }
+                let mut map = AHashMap::with_capacity(new_cap);
+                if let Some(persistents) = persistents {
+                    map.extend(persistents.iter().map(|(k, v)| {
+                        let mut s = String::with_capacity(persistent_prefix.len() + k.len());
+                        s.push_str(persistent_prefix);
+                        s.push_str(k);
+                        (FastStr::from(s), v.clone())
+                    }));
+                }
+                if let Some(transients) = transients {
+                    map.extend(transients.iter().map(|(k, v)| {
+                        let mut s = String::with_capacity(transient_prefix.len() + k.len());
+                        s.push_str(transient_prefix);
+                        s.push_str(k);
+                        (FastStr::from(s), v.clone())
+                    }));
+                }
+                Some(map)
+            }
+            None => None,
+        }
+    }
+
+    #[inline]
+    fn get_all_backword_transients_with_prefix(
+        &self,
+        prefix: &str,
+    ) -> Option<AHashMap<FastStr, FastStr>> {
+        match self.backward_node.as_ref() {
+            Some(node) => {
+                if let Some(t) = node.get_all_transients() {
+                    let new_cap = t.len();
+                    if new_cap == 0 {
+                        return None;
+                    }
+                    let mut map = AHashMap::with_capacity(new_cap);
+                    map.extend(t.iter().map(|(k, v)| {
+                        let mut s = String::with_capacity(prefix.len() + k.len());
+                        s.push_str(prefix);
+                        s.push_str(k);
+                        (FastStr::from(s), v.clone())
+                    }));
+                    Some(map)
+                } else {
+                    None
+                }
+            }
+            None => None,
         }
     }
 }

@@ -9,6 +9,9 @@ pub trait Backward {
     fn get_all_backward_transients(&self) -> Option<&AHashMap<FastStr, FastStr>>;
     fn get_all_backward_downstreams(&self) -> Option<&AHashMap<FastStr, FastStr>>;
 
+    fn get_all_backward_transients_with_rpc_prefix(&self) -> Option<AHashMap<FastStr, FastStr>>;
+    fn get_all_backward_transients_with_http_prefix(&self) -> Option<AHashMap<FastStr, FastStr>>;
+
     fn set_backward_transient<K: Into<FastStr>, V: Into<FastStr>>(&mut self, key: K, value: V);
     fn set_backward_downstream<K: Into<FastStr>, V: Into<FastStr>>(&mut self, key: K, value: V);
 
