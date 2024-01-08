@@ -6,7 +6,7 @@ use fxhash::FxHashMap;
 /// This is an optimized version of TypeMap to FastStr that eliminates the need to Box the values.
 ///
 /// This map is suitable for T that impls both From<FastStr> and Into<FastStr>.
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct FastStrMap {
     inner: FxHashMap<TypeId, FastStr>,
 }
