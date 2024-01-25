@@ -4,7 +4,7 @@ use std::{
     marker::PhantomData,
 };
 
-use fxhash::FxHashMap;
+use rustc_hash::FxHashMap;
 
 pub(crate) type AnyObject = Box<dyn Any + Send + Sync>;
 
