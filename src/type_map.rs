@@ -19,7 +19,7 @@ impl<'a, K, V> Entry<'a, K, V> {
     where
         V: Send + Sync + 'static,
     {
-        let v = self.inner.or_insert(Box::new(default));
+        let v = self.inner.or_insert_with(|| Box::new(default));
         v.downcast_mut().unwrap()
     }
 
@@ -54,12 +54,13 @@ impl<'a, K, V> Entry<'a, K, V> {
         }
     }
 
+    #[allow(clippy::unwrap_or_default)]
     #[inline]
     pub fn or_default(self) -> &'a mut V
     where
         V: Default + Send + Sync + 'static,
     {
-        self.or_insert(V::default())
+        self.or_insert_with(V::default)
     }
 }
 
