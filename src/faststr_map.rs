@@ -1,7 +1,7 @@
 use std::{any::TypeId, collections::hash_map::Entry};
 
 use faststr::FastStr;
-use fxhash::FxHashMap;
+use rustc_hash::FxHashMap;
 
 /// This is an optimized version of TypeMap to FastStr that eliminates the need to Box the values.
 ///
