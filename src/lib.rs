@@ -108,7 +108,7 @@ impl MetaInfo {
     ///
     /// This is the recommended way.
     #[inline]
-    pub fn derive(self) -> (MetaInfo, MetaInfo) {
+    pub fn derive(mut self) -> (MetaInfo, MetaInfo) {
         if self.tmap.is_none() && self.smap.is_none() && self.faststr_tmap.is_none() {
             // we can use the same parent as self to make the tree small
             let new = MetaInfo {
@@ -121,8 +121,30 @@ impl MetaInfo {
             };
             (self, new)
         } else {
+            let forward_node = self.forward_node.take();
+            let backward_node = self.backward_node.take();
             let mi = Arc::new(self);
-            (Self::from(mi.clone()), Self::from(mi))
+            (
+                MetaInfo::from_node(mi.clone(), forward_node.clone(), backward_node.clone()),
+                MetaInfo::from_node(mi, forward_node, backward_node),
+            )
+        }
+    }
+
+    /// Creates an `MetaInfo` with the parent and node given.
+    fn from_node(
+        parent: Arc<MetaInfo>,
+        forward_node: Option<kv::Node>,
+        backward_node: Option<kv::Node>,
+    ) -> MetaInfo {
+        MetaInfo {
+            parent: Some(parent),
+            tmap: None,
+            smap: None,
+            faststr_tmap: None,
+
+            forward_node,
+            backward_node,
         }
     }
 
