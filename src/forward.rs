@@ -22,23 +22,23 @@ pub trait Forward {
     fn set_transient<K: Into<FastStr>, V: Into<FastStr>>(&mut self, key: K, value: V);
     fn set_upstream<K: Into<FastStr>, V: Into<FastStr>>(&mut self, key: K, value: V);
 
-    fn strip_rpc_prefix_and_set_persistent<K: Into<FastStr>, V: Into<FastStr>>(
+    fn strip_rpc_prefix_and_set_persistent<K: AsRef<str>, V: Into<FastStr>>(
         &mut self,
         key: K,
         value: V,
     );
-    fn strip_rpc_prefix_and_set_upstream<K: Into<FastStr>, V: Into<FastStr>>(
+    fn strip_rpc_prefix_and_set_upstream<K: AsRef<str>, V: Into<FastStr>>(
         &mut self,
         key: K,
         value: V,
     );
 
-    fn strip_http_prefix_and_set_persistent<K: Into<FastStr>, V: Into<FastStr>>(
+    fn strip_http_prefix_and_set_persistent<K: AsRef<str>, V: Into<FastStr>>(
         &mut self,
         key: K,
         value: V,
     );
-    fn strip_http_prefix_and_set_upstream<K: Into<FastStr>, V: Into<FastStr>>(
+    fn strip_http_prefix_and_set_upstream<K: AsRef<str>, V: Into<FastStr>>(
         &mut self,
         key: K,
         value: V,

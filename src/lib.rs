@@ -1,9 +1,12 @@
+mod convert;
 mod faststr_map;
+mod kv;
 mod type_map;
 
 use std::{fmt, sync::Arc};
 
 use ahash::AHashMap;
+use convert::{Converter, HttpConverter, RpcConverter};
 use faststr::FastStr;
 pub use faststr_map::FastStrMap;
 use kv::Node;
@@ -14,8 +17,6 @@ pub mod backward;
 pub mod forward;
 pub use backward::Backward;
 pub use forward::Forward;
-
-mod kv;
 
 #[cfg(feature = "task_local")]
 tokio::task_local! {
@@ -426,19 +427,13 @@ impl forward::Forward for MetaInfo {
     fn get_all_persistents_and_transients_with_rpc_prefix(
         &self,
     ) -> Option<AHashMap<FastStr, FastStr>> {
-        self.get_all_persistents_and_transients_with_prefix(
-            crate::RPC_PREFIX_PERSISTENT,
-            crate::RPC_PREFIX_TRANSIENT,
-        )
+        self.get_all_persistents_and_transients(RpcConverter)
     }
 
     fn get_all_persistents_and_transients_with_http_prefix(
         &self,
     ) -> Option<AHashMap<FastStr, FastStr>> {
-        self.get_all_persistents_and_transients_with_prefix(
-            crate::HTTP_PREFIX_PERSISTENT,
-            crate::HTTP_PREFIX_TRANSIENT,
-        )
+        self.get_all_persistents_and_transients(HttpConverter)
     }
 
     fn get_all_transients(&self) -> Option<&AHashMap<FastStr, FastStr>> {
@@ -455,47 +450,47 @@ impl forward::Forward for MetaInfo {
         }
     }
 
-    fn strip_rpc_prefix_and_set_persistent<K: Into<FastStr>, V: Into<FastStr>>(
+    fn strip_rpc_prefix_and_set_persistent<K: AsRef<str>, V: Into<FastStr>>(
         &mut self,
         key: K,
         value: V,
     ) {
-        let key: FastStr = key.into();
-        if let Some(k) = key.strip_prefix(crate::RPC_PREFIX_PERSISTENT) {
-            self.set_persistent(key.slice_ref(k), value);
+        let key = key.as_ref();
+        if let Some(key) = RpcConverter.remove_persistent_prefix(key) {
+            self.set_persistent(key, value);
         }
     }
 
-    fn strip_rpc_prefix_and_set_upstream<K: Into<FastStr>, V: Into<FastStr>>(
+    fn strip_rpc_prefix_and_set_upstream<K: AsRef<str>, V: Into<FastStr>>(
         &mut self,
         key: K,
         value: V,
     ) {
-        let key: FastStr = key.into();
-        if let Some(k) = key.strip_prefix(crate::RPC_PREFIX_TRANSIENT) {
-            self.set_upstream(key.slice_ref(k), value);
+        let key = key.as_ref();
+        if let Some(key) = RpcConverter.remove_transient_prefix(key) {
+            self.set_upstream(key, value);
         }
     }
 
-    fn strip_http_prefix_and_set_persistent<K: Into<FastStr>, V: Into<FastStr>>(
+    fn strip_http_prefix_and_set_persistent<K: AsRef<str>, V: Into<FastStr>>(
         &mut self,
         key: K,
         value: V,
     ) {
-        let key: FastStr = key.into();
-        if let Some(k) = key.strip_prefix(crate::HTTP_PREFIX_PERSISTENT) {
-            self.set_persistent(key.slice_ref(k), value);
+        let key = key.as_ref();
+        if let Some(key) = HttpConverter.remove_persistent_prefix(key) {
+            self.set_persistent(key, value);
         }
     }
 
-    fn strip_http_prefix_and_set_upstream<K: Into<FastStr>, V: Into<FastStr>>(
+    fn strip_http_prefix_and_set_upstream<K: AsRef<str>, V: Into<FastStr>>(
         &mut self,
         key: K,
         value: V,
     ) {
-        let key: FastStr = key.into();
-        if let Some(k) = key.strip_prefix(crate::HTTP_PREFIX_TRANSIENT) {
-            self.set_upstream(key.slice_ref(k), value);
+        let key = key.as_ref();
+        if let Some(key) = HttpConverter.remove_transient_prefix(key) {
+            self.set_upstream(key, value);
         }
     }
 }
@@ -525,43 +520,45 @@ impl backward::Backward for MetaInfo {
     }
 
     fn get_all_backward_transients_with_rpc_prefix(&self) -> Option<AHashMap<FastStr, FastStr>> {
-        self.get_all_backword_transients_with_prefix(crate::RPC_PREFIX_BACKWARD)
+        self.get_all_backword_transients_with_prefix(RpcConverter)
     }
 
     fn get_all_backward_transients_with_http_prefix(&self) -> Option<AHashMap<FastStr, FastStr>> {
-        self.get_all_backword_transients_with_prefix(crate::HTTP_PREFIX_BACKWARD)
+        self.get_all_backword_transients_with_prefix(HttpConverter)
     }
 
-    fn strip_rpc_prefix_and_set_backward_downstream<K: Into<FastStr>, V: Into<FastStr>>(
+    fn strip_rpc_prefix_and_set_backward_downstream<K: AsRef<str>, V: Into<FastStr>>(
         &mut self,
         key: K,
         value: V,
     ) {
-        let key: FastStr = key.into();
-        if let Some(k) = key.strip_prefix(crate::RPC_PREFIX_BACKWARD) {
-            self.set_backward_downstream(key.slice_ref(k), value);
+        let key = key.as_ref();
+        if let Some(key) = RpcConverter.remove_backward_prefix(key) {
+            self.set_backward_downstream(key, value);
         }
     }
 
-    fn strip_http_prefix_and_set_backward_downstream<K: Into<FastStr>, V: Into<FastStr>>(
+    fn strip_http_prefix_and_set_backward_downstream<K: AsRef<str>, V: Into<FastStr>>(
         &mut self,
         key: K,
         value: V,
     ) {
-        let key: FastStr = key.into();
-        if let Some(k) = key.strip_prefix(crate::HTTP_PREFIX_BACKWARD) {
-            self.set_backward_downstream(key.slice_ref(k), value);
+        let key = key.as_ref();
+        if let Some(key) = HttpConverter.remove_backward_prefix(key) {
+            self.set_backward_downstream(key, value);
         }
     }
 }
 
 impl MetaInfo {
     #[inline]
-    fn get_all_persistents_and_transients_with_prefix(
+    fn get_all_persistents_and_transients<C>(
         &self,
-        persistent_prefix: &str,
-        transient_prefix: &str,
-    ) -> Option<AHashMap<FastStr, FastStr>> {
+        converter: C,
+    ) -> Option<AHashMap<FastStr, FastStr>>
+    where
+        C: Converter,
+    {
         match self.forward_node.as_ref() {
             Some(node) => {
                 let persistents = node.get_all_persistents();
@@ -573,20 +570,18 @@ impl MetaInfo {
                 }
                 let mut map = AHashMap::with_capacity(new_cap);
                 if let Some(persistents) = persistents {
-                    map.extend(persistents.iter().map(|(k, v)| {
-                        let mut s = String::with_capacity(persistent_prefix.len() + k.len());
-                        s.push_str(persistent_prefix);
-                        s.push_str(k);
-                        (FastStr::from(s), v.clone())
-                    }));
+                    map.extend(
+                        persistents
+                            .iter()
+                            .map(|(k, v)| (converter.add_persistent_prefix(k), v.clone())),
+                    );
                 }
                 if let Some(transients) = transients {
-                    map.extend(transients.iter().map(|(k, v)| {
-                        let mut s = String::with_capacity(transient_prefix.len() + k.len());
-                        s.push_str(transient_prefix);
-                        s.push_str(k);
-                        (FastStr::from(s), v.clone())
-                    }));
+                    map.extend(
+                        transients
+                            .iter()
+                            .map(|(k, v)| (converter.add_transient_prefix(k), v.clone())),
+                    );
                 }
                 Some(map)
             }
@@ -595,10 +590,13 @@ impl MetaInfo {
     }
 
     #[inline]
-    fn get_all_backword_transients_with_prefix(
+    fn get_all_backword_transients_with_prefix<C>(
         &self,
-        prefix: &str,
-    ) -> Option<AHashMap<FastStr, FastStr>> {
+        converter: C,
+    ) -> Option<AHashMap<FastStr, FastStr>>
+    where
+        C: Converter,
+    {
         match self.backward_node.as_ref() {
             Some(node) => {
                 if let Some(t) = node.get_all_transients() {
@@ -607,12 +605,10 @@ impl MetaInfo {
                         return None;
                     }
                     let mut map = AHashMap::with_capacity(new_cap);
-                    map.extend(t.iter().map(|(k, v)| {
-                        let mut s = String::with_capacity(prefix.len() + k.len());
-                        s.push_str(prefix);
-                        s.push_str(k);
-                        (FastStr::from(s), v.clone())
-                    }));
+                    map.extend(
+                        t.iter()
+                            .map(|(k, v)| (converter.add_transient_prefix(k), v.clone())),
+                    );
                     Some(map)
                 } else {
                     None
@@ -783,5 +779,35 @@ mod tests {
         assert_eq!(metainfo.get(), Some(&MyType(10)));
 
         assert_eq!(metainfo.get(), Some(&20u8));
+    }
+
+    #[test]
+    fn rpc_forward_test() {
+        let mut metainfo = MetaInfo::new();
+        metainfo.strip_rpc_prefix_and_set_persistent("RPC_PERSIST_TEST_KEY", "PERSIST");
+        metainfo.strip_rpc_prefix_and_set_upstream("RPC_TRANSIT_TEST_KEY", "TRANSIT");
+        assert_eq!(metainfo.get_persistent("TEST_KEY").unwrap(), "PERSIST");
+        assert_eq!(metainfo.get_upstream("TEST_KEY").unwrap(), "TRANSIT");
+        let map = metainfo
+            .get_all_persistents_and_transients_with_rpc_prefix()
+            .unwrap();
+        assert_eq!(map.get("RPC_PERSIST_TEST_KEY").unwrap(), "PERSIST");
+        // The `RPC_TRANSIT_TEST_KEY` is inserted into `upstream` and we cannot get it from
+        // `transients`.
+    }
+
+    #[test]
+    fn http_forward_test() {
+        let mut metainfo = MetaInfo::new();
+        metainfo.strip_http_prefix_and_set_persistent("rpc-persist-test-key", "persist");
+        metainfo.strip_http_prefix_and_set_upstream("rpc-transit-test-key", "transit");
+        assert_eq!(metainfo.get_persistent("TEST_KEY").unwrap(), "persist");
+        assert_eq!(metainfo.get_upstream("TEST_KEY").unwrap(), "transit");
+        let map = metainfo
+            .get_all_persistents_and_transients_with_http_prefix()
+            .unwrap();
+        assert_eq!(map.get("rpc-persist-test-key").unwrap(), "persist");
+        // The `RPC_TRANSIT_TEST_KEY` is inserted into `upstream` and we cannot get it from
+        // `transients`.
     }
 }
