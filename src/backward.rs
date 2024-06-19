@@ -15,13 +15,13 @@ pub trait Backward {
     fn set_backward_transient<K: Into<FastStr>, V: Into<FastStr>>(&mut self, key: K, value: V);
     fn set_backward_downstream<K: Into<FastStr>, V: Into<FastStr>>(&mut self, key: K, value: V);
 
-    fn strip_rpc_prefix_and_set_backward_downstream<K: Into<FastStr>, V: Into<FastStr>>(
+    fn strip_rpc_prefix_and_set_backward_downstream<K: AsRef<str>, V: Into<FastStr>>(
         &mut self,
         key: K,
         value: V,
     );
 
-    fn strip_http_prefix_and_set_backward_downstream<K: Into<FastStr>, V: Into<FastStr>>(
+    fn strip_http_prefix_and_set_backward_downstream<K: AsRef<str>, V: Into<FastStr>>(
         &mut self,
         key: K,
         value: V,
