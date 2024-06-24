@@ -1,28 +1,28 @@
 use std::{any::TypeId, collections::hash_map::Entry};
 
 use faststr::FastStr;
-use rustc_hash::FxHashMap;
+use rustc_hash::FxHashMapRand;
 
 /// This is an optimized version of TypeMap to FastStr that eliminates the need to Box the values.
 ///
 /// This map is suitable for T that impls both From<FastStr> and Into<FastStr>.
 #[derive(Debug, Default)]
 pub struct FastStrMap {
-    inner: FxHashMap<TypeId, FastStr>,
+    inner: FxHashMapRand<TypeId, FastStr>,
 }
 
 impl FastStrMap {
     #[inline]
     pub fn new() -> Self {
         Self {
-            inner: FxHashMap::default(),
+            inner: FxHashMapRand::default(),
         }
     }
 
     #[inline]
     pub fn with_capacity(capacity: usize) -> Self {
         Self {
-            inner: FxHashMap::with_capacity_and_hasher(capacity, Default::default()),
+            inner: FxHashMapRand::with_capacity_and_hasher(capacity, Default::default()),
         }
     }
 

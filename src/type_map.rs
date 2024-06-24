@@ -4,7 +4,7 @@ use std::{
     marker::PhantomData,
 };
 
-use rustc_hash::FxHashMap;
+use rustc_hash::FxHashMapRand;
 
 pub(crate) type AnyObject = Box<dyn Any + Send + Sync>;
 
@@ -66,21 +66,21 @@ impl<'a, K, V> Entry<'a, K, V> {
 
 #[derive(Debug, Default)]
 pub struct TypeMap {
-    inner: FxHashMap<TypeId, AnyObject>,
+    inner: FxHashMapRand<TypeId, AnyObject>,
 }
 
 impl TypeMap {
     #[inline]
     pub fn new() -> Self {
         TypeMap {
-            inner: FxHashMap::default(),
+            inner: FxHashMapRand::default(),
         }
     }
 
     #[inline]
     pub fn with_capacity(capacity: usize) -> Self {
         TypeMap {
-            inner: FxHashMap::with_capacity_and_hasher(capacity, Default::default()),
+            inner: FxHashMapRand::with_capacity_and_hasher(capacity, Default::default()),
         }
     }
 

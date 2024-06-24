@@ -1,6 +1,6 @@
 [package]
 name = "metainfo"
-version = "0.7.11"
+version = "0.7.12"
 authors = ["Volo Team <volo@cloudwego.io>"]
 edition = "2021"
 description = "Transmissing metainfo across components."
@@ -17,7 +17,7 @@ maintenance = { status = "actively-developed" }
 [dependencies]
 ahash = "0.8"
 faststr = "0.2"
-rustc-hash = "1"
+rustc-hash = { version = "2", features = ["rand"] }
 paste = "1"
 tokio = { version = "1", optional = true }
 
