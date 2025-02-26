@@ -7,6 +7,7 @@ const DEFAULT_CAPACITY: usize = 10; // maybe enough for most cases?
 macro_rules! set_impl {
     ($name:ident) => {
         paste! {
+            #[inline]
             pub fn [<set_ $name>]<K: Into<FastStr>, V: Into<FastStr>>(
                 &mut self,
                 key: K,
@@ -24,6 +25,7 @@ macro_rules! set_impl {
 macro_rules! del_impl {
     ($name:ident) => {
         paste! {
+            #[inline]
             pub fn [<del_ $name>]<K: AsRef<str>>(&mut self, key: K) -> Option<FastStr> {
                 let key = key.as_ref();
                 if let Some(v) = self.$name.as_mut() {
@@ -39,6 +41,7 @@ macro_rules! del_impl {
 macro_rules! get_impl {
     ($name:ident) => {
         paste! {
+            #[inline]
             pub fn [<get_ $name>]<K: AsRef<str>>(&self, key: K) -> Option<FastStr> {
                 let key = key.as_ref();
                 match self.$name.as_ref() {
@@ -55,6 +58,7 @@ macro_rules! get_impl {
 macro_rules! get_all_impl {
     ($name:ident) => {
         paste! {
+            #[inline]
             pub fn [<get_all_ $name s>](&self) -> Option<&AHashMap<FastStr, FastStr>> {
                 self.$name.as_ref()
             }
@@ -87,6 +91,7 @@ impl Node {
     get_all_impl!(transient);
     get_all_impl!(stale);
 
+    #[inline]
     pub fn extend(&mut self, other: Self) {
         if let Some(v) = other.persistent {
             if self.persistent.is_none() {
@@ -113,6 +118,7 @@ impl Node {
         }
     }
 
+    #[inline]
     pub fn clear(&mut self) {
         if let Some(v) = self.persistent.as_mut() {
             v.clear();

@@ -362,6 +362,7 @@ impl MetaInfo {
 macro_rules! get_impl {
     ($name:ident,$node:ident,$func_name:ident) => {
         paste! {
+            #[inline]
             fn [<get_ $name>]<K: AsRef<str>>(&self, key: K) -> Option<FastStr> {
                 match self.[<$node _node>].as_ref() {
                     Some(node) => node.[<get_ $func_name>](key),
@@ -375,6 +376,7 @@ macro_rules! get_impl {
 macro_rules! set_impl {
     ($name:ident,$node:ident,$func_name:ident) => {
         paste! {
+            #[inline]
             fn [<set_ $name>]<K: Into<FastStr>, V: Into<FastStr>>(
                 &mut self,
                 key: K,
@@ -393,6 +395,7 @@ macro_rules! set_impl {
 macro_rules! del_impl {
     ($name:ident,$node:ident,$func_name:ident) => {
         paste! {
+            #[inline]
             fn [<del_ $name>]<K: AsRef<str>>(&mut self, key: K) -> Option<FastStr> {
                 if let Some(node) = self.[<$node _node>].as_mut() {
                     node.[<del_ $func_name>](key)
@@ -417,6 +420,7 @@ impl forward::Forward for MetaInfo {
     del_impl!(transient, forward, transient);
     del_impl!(upstream, forward, stale);
 
+    #[inline]
     fn get_all_persistents(&self) -> Option<&AHashMap<FastStr, FastStr>> {
         match self.forward_node.as_ref() {
             Some(node) => node.get_all_persistents(),
@@ -424,6 +428,7 @@ impl forward::Forward for MetaInfo {
         }
     }
 
+    #[inline]
     fn get_all_transients(&self) -> Option<&AHashMap<FastStr, FastStr>> {
         match self.forward_node.as_ref() {
             Some(node) => node.get_all_transients(),
@@ -431,6 +436,7 @@ impl forward::Forward for MetaInfo {
         }
     }
 
+    #[inline]
     fn get_all_upstreams(&self) -> Option<&AHashMap<FastStr, FastStr>> {
         match self.forward_node.as_ref() {
             Some(node) => node.get_all_stales(),
@@ -438,30 +444,35 @@ impl forward::Forward for MetaInfo {
         }
     }
 
+    #[inline]
     fn get_all_persistents_and_transients_with_rpc_prefix(
         &self,
     ) -> Option<AHashMap<FastStr, FastStr>> {
         self.get_all_persistents_and_transients_with_prefix(RpcConverter)
     }
 
+    #[inline]
     fn get_all_persistents_and_transients_with_http_prefix(
         &self,
     ) -> Option<AHashMap<FastStr, FastStr>> {
         self.get_all_persistents_and_transients_with_prefix(HttpConverter)
     }
 
+    #[inline]
     fn iter_persistents_and_transients_with_rpc_prefix(
         &self,
     ) -> impl Iterator<Item = (FastStr, &FastStr)> {
         self.iter_all_persistents_and_transients_with_prefix(RpcConverter)
     }
 
+    #[inline]
     fn iter_persistents_and_transients_with_http_prefix(
         &self,
     ) -> impl Iterator<Item = (FastStr, &FastStr)> {
         self.iter_all_persistents_and_transients_with_prefix(HttpConverter)
     }
 
+    #[inline]
     fn strip_rpc_prefix_and_set_persistent<K: AsRef<str>, V: Into<FastStr>>(
         &mut self,
         key: K,
@@ -473,6 +484,7 @@ impl forward::Forward for MetaInfo {
         }
     }
 
+    #[inline]
     fn strip_rpc_prefix_and_set_upstream<K: AsRef<str>, V: Into<FastStr>>(
         &mut self,
         key: K,
@@ -484,6 +496,7 @@ impl forward::Forward for MetaInfo {
         }
     }
 
+    #[inline]
     fn strip_http_prefix_and_set_persistent<K: AsRef<str>, V: Into<FastStr>>(
         &mut self,
         key: K,
@@ -495,6 +508,7 @@ impl forward::Forward for MetaInfo {
         }
     }
 
+    #[inline]
     fn strip_http_prefix_and_set_upstream<K: AsRef<str>, V: Into<FastStr>>(
         &mut self,
         key: K,
