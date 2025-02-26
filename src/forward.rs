@@ -18,6 +18,13 @@ pub trait Forward {
         &self,
     ) -> Option<AHashMap<FastStr, FastStr>>;
 
+    fn iter_persistents_and_transients_with_rpc_prefix(
+        &self,
+    ) -> impl Iterator<Item = (FastStr, &FastStr)>;
+    fn iter_persistents_and_transients_with_http_prefix(
+        &self,
+    ) -> impl Iterator<Item = (FastStr, &FastStr)>;
+
     fn set_persistent<K: Into<FastStr>, V: Into<FastStr>>(&mut self, key: K, value: V);
     fn set_transient<K: Into<FastStr>, V: Into<FastStr>>(&mut self, key: K, value: V);
     fn set_upstream<K: Into<FastStr>, V: Into<FastStr>>(&mut self, key: K, value: V);

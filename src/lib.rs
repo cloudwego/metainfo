@@ -424,18 +424,6 @@ impl forward::Forward for MetaInfo {
         }
     }
 
-    fn get_all_persistents_and_transients_with_rpc_prefix(
-        &self,
-    ) -> Option<AHashMap<FastStr, FastStr>> {
-        self.get_all_persistents_and_transients(RpcConverter)
-    }
-
-    fn get_all_persistents_and_transients_with_http_prefix(
-        &self,
-    ) -> Option<AHashMap<FastStr, FastStr>> {
-        self.get_all_persistents_and_transients(HttpConverter)
-    }
-
     fn get_all_transients(&self) -> Option<&AHashMap<FastStr, FastStr>> {
         match self.forward_node.as_ref() {
             Some(node) => node.get_all_transients(),
@@ -448,6 +436,30 @@ impl forward::Forward for MetaInfo {
             Some(node) => node.get_all_stales(),
             None => None,
         }
+    }
+
+    fn get_all_persistents_and_transients_with_rpc_prefix(
+        &self,
+    ) -> Option<AHashMap<FastStr, FastStr>> {
+        self.get_all_persistents_and_transients_with_prefix(RpcConverter)
+    }
+
+    fn get_all_persistents_and_transients_with_http_prefix(
+        &self,
+    ) -> Option<AHashMap<FastStr, FastStr>> {
+        self.get_all_persistents_and_transients_with_prefix(HttpConverter)
+    }
+
+    fn iter_persistents_and_transients_with_rpc_prefix(
+        &self,
+    ) -> impl Iterator<Item = (FastStr, &FastStr)> {
+        self.iter_all_persistents_and_transients_with_prefix(RpcConverter)
+    }
+
+    fn iter_persistents_and_transients_with_http_prefix(
+        &self,
+    ) -> impl Iterator<Item = (FastStr, &FastStr)> {
+        self.iter_all_persistents_and_transients_with_prefix(HttpConverter)
     }
 
     fn strip_rpc_prefix_and_set_persistent<K: AsRef<str>, V: Into<FastStr>>(
@@ -527,6 +539,18 @@ impl backward::Backward for MetaInfo {
         self.get_all_backword_transients_with_prefix(HttpConverter)
     }
 
+    fn iter_backward_transients_with_rpc_prefix(
+        &self,
+    ) -> impl Iterator<Item = (FastStr, &FastStr)> {
+        self.iter_all_backword_transients_with_prefix(RpcConverter)
+    }
+
+    fn iter_backward_transients_with_http_prefix(
+        &self,
+    ) -> impl Iterator<Item = (FastStr, &FastStr)> {
+        self.iter_all_backword_transients_with_prefix(HttpConverter)
+    }
+
     fn strip_rpc_prefix_and_set_backward_downstream<K: AsRef<str>, V: Into<FastStr>>(
         &mut self,
         key: K,
@@ -552,7 +576,7 @@ impl backward::Backward for MetaInfo {
 
 impl MetaInfo {
     #[inline]
-    fn get_all_persistents_and_transients<C>(
+    fn get_all_persistents_and_transients_with_prefix<C>(
         &self,
         converter: C,
     ) -> Option<AHashMap<FastStr, FastStr>>
@@ -590,6 +614,30 @@ impl MetaInfo {
     }
 
     #[inline]
+    fn iter_all_persistents_and_transients_with_prefix<C>(
+        &self,
+        converter: C,
+    ) -> impl Iterator<Item = (FastStr, &FastStr)>
+    where
+        C: Converter + Copy + 'static,
+    {
+        self.forward_node
+            .as_ref()
+            .into_iter()
+            .flat_map(move |node| {
+                let persistents = node.get_all_persistents().into_iter().flat_map(move |p| {
+                    p.into_iter()
+                        .map(move |(k, v)| (converter.add_persistent_prefix(k), v))
+                });
+                let transients = node.get_all_transients().into_iter().flat_map(move |t| {
+                    t.into_iter()
+                        .map(move |(k, v)| (converter.add_transient_prefix(k), v))
+                });
+                persistents.chain(transients)
+            })
+    }
+
+    #[inline]
     fn get_all_backword_transients_with_prefix<C>(
         &self,
         converter: C,
@@ -616,6 +664,25 @@ impl MetaInfo {
             }
             None => None,
         }
+    }
+
+    #[inline]
+    fn iter_all_backword_transients_with_prefix<C>(
+        &self,
+        converter: C,
+    ) -> impl Iterator<Item = (FastStr, &FastStr)>
+    where
+        C: Converter + 'static,
+    {
+        self.backward_node
+            .as_ref()
+            .into_iter()
+            .flat_map(|node| {
+                node.get_all_transients()
+                    .into_iter()
+                    .flat_map(|t| t.into_iter())
+            })
+            .map(move |(k, v)| (converter.add_transient_prefix(k), v))
     }
 }
 
@@ -807,6 +874,11 @@ mod tests {
             .get_all_persistents_and_transients_with_http_prefix()
             .unwrap();
         assert_eq!(map.get("rpc-persist-test-key").unwrap(), "persist");
+        let iter = metainfo.iter_all_persistents_and_transients_with_prefix(HttpConverter);
+        assert_eq!(iter.count(), 1);
+        metainfo.set_persistent("test_key2", "test_value2");
+        let iter = metainfo.iter_all_persistents_and_transients_with_prefix(HttpConverter);
+        assert_eq!(iter.count(), 2);
         // The `RPC_TRANSIT_TEST_KEY` is inserted into `upstream` and we cannot get it from
         // `transients`.
     }

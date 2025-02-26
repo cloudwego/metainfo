@@ -1,3 +1,5 @@
+#![allow(clippy::uninit_vec)]
+
 use faststr::FastStr;
 
 use crate::{
@@ -16,11 +18,33 @@ pub trait Converter {
     fn remove_backward_prefix(&self, key: &str) -> Option<FastStr>;
 }
 
+const FASTSTR_INLINE_SIZE: usize = 24;
+
+#[derive(Clone, Copy)]
 pub struct RpcConverter;
 
 impl RpcConverter {
     #[inline]
     fn add_prefix(&self, prefix: &'static str, key: &str) -> FastStr {
+        // checks if we can use the inline buffer to reduce heap allocations
+        if prefix.len() + key.len() <= FASTSTR_INLINE_SIZE {
+            let mut inline_buf = [0u8; FASTSTR_INLINE_SIZE];
+            unsafe {
+                std::ptr::copy_nonoverlapping(
+                    prefix.as_ptr(),
+                    inline_buf.as_mut_ptr(),
+                    prefix.len(),
+                );
+                std::ptr::copy_nonoverlapping(
+                    key.as_ptr(),
+                    inline_buf.as_mut_ptr().add(prefix.len()),
+                    key.len(),
+                );
+            }
+            return unsafe {
+                FastStr::new_u8_slice_unchecked(&inline_buf[..prefix.len() + key.len()])
+            };
+        }
         let mut res = String::with_capacity(prefix.len() + key.len());
         res.push_str(prefix);
         res.push_str(key);
@@ -30,103 +54,174 @@ impl RpcConverter {
     #[inline]
     fn remove_prefix(&self, prefix: &'static str, key: &str) -> Option<FastStr> {
         let key = key.strip_prefix(prefix)?;
-        Some(FastStr::from_string(key.to_owned()))
+        Some(FastStr::new(key))
     }
 }
 
 impl Converter for RpcConverter {
+    #[inline]
     fn add_persistent_prefix(&self, key: &str) -> FastStr {
         self.add_prefix(RPC_PREFIX_PERSISTENT, key)
     }
 
+    #[inline]
     fn add_transient_prefix(&self, key: &str) -> FastStr {
         self.add_prefix(RPC_PREFIX_TRANSIENT, key)
     }
 
+    #[inline]
     fn add_backward_prefix(&self, key: &str) -> FastStr {
         self.add_prefix(RPC_PREFIX_BACKWARD, key)
     }
 
+    #[inline]
     fn remove_persistent_prefix(&self, key: &str) -> Option<FastStr> {
         self.remove_prefix(RPC_PREFIX_PERSISTENT, key)
     }
 
+    #[inline]
     fn remove_transient_prefix(&self, key: &str) -> Option<FastStr> {
         self.remove_prefix(RPC_PREFIX_TRANSIENT, key)
     }
 
+    #[inline]
     fn remove_backward_prefix(&self, key: &str) -> Option<FastStr> {
         self.remove_prefix(RPC_PREFIX_BACKWARD, key)
     }
 }
 
+#[derive(Clone, Copy)]
 pub struct HttpConverter;
 
 impl HttpConverter {
     /// Convert `RPC_PERSIST_TEST_KEY` to `rpc-persist-test-key`
     #[inline]
-    fn to_http_format(&self, key: &str, buf: &mut String) {
+    fn to_http_format(&self, key: &str, buf: &mut [u8]) {
+        let mut l = 0;
         for ch in key.chars() {
             let ch = match ch {
                 'A'..='Z' => ch.to_ascii_lowercase(),
                 '_' => '-',
                 _ => ch,
             };
-            buf.push(ch);
+            let len = ch.len_utf8();
+            match len {
+                1 => unsafe {
+                    *buf.get_unchecked_mut(l) = ch as u8;
+                },
+                _ => unsafe {
+                    std::ptr::copy_nonoverlapping(
+                        ch.encode_utf8(&mut [0; 4]).as_bytes().as_ptr(),
+                        buf.as_mut_ptr().add(l),
+                        len,
+                    );
+                },
+            }
+            l += len;
         }
     }
 
     /// Convert `rpc-persist-test-key` to `RPC_PERSIST_TEST_KEY`
     #[inline]
-    fn to_rpc_format(&self, key: &str, buf: &mut String) {
+    fn to_rpc_format(&self, key: &str, buf: &mut [u8]) {
+        let mut l = 0;
         for ch in key.chars() {
             let ch = match ch {
                 'a'..='z' => ch.to_ascii_uppercase(),
                 '-' => '_',
                 _ => ch,
             };
-            buf.push(ch);
+            let len = ch.len_utf8();
+            match len {
+                1 => unsafe {
+                    *buf.get_unchecked_mut(l) = ch as u8;
+                },
+                _ => unsafe {
+                    std::ptr::copy_nonoverlapping(
+                        ch.encode_utf8(&mut [0; 4]).as_bytes().as_ptr(),
+                        buf.as_mut_ptr().add(l),
+                        len,
+                    );
+                },
+            }
+            l += len;
         }
     }
 
     #[inline]
     fn add_prefix_and_to_http_format(&self, prefix: &'static str, key: &str) -> FastStr {
-        let mut buf = String::with_capacity(prefix.len() + key.len());
-        buf.push_str(prefix);
+        // checks if we can use the inline buffer to reduce heap allocations
+        if prefix.len() + key.len() <= FASTSTR_INLINE_SIZE {
+            let mut inline_buf = [0u8; FASTSTR_INLINE_SIZE];
+            unsafe {
+                std::ptr::copy_nonoverlapping(
+                    prefix.as_ptr(),
+                    inline_buf.as_mut_ptr(),
+                    prefix.len(),
+                );
+                self.to_http_format(key, &mut inline_buf[prefix.len()..]);
+            }
+            return unsafe {
+                FastStr::new_u8_slice_unchecked(&inline_buf[..prefix.len() + key.len()])
+            };
+        }
+
+        let mut buf = Vec::with_capacity(prefix.len() + key.len());
+        buf.extend_from_slice(prefix.as_bytes());
+        unsafe {
+            buf.set_len(prefix.len() + key.len());
+        }
         self.to_http_format(key, &mut buf);
-        FastStr::from_string(buf)
+        unsafe { FastStr::from_vec_u8_unchecked(buf) }
     }
 
     #[inline]
     fn remove_prefix_and_to_rpc_format(&self, prefix: &'static str, key: &str) -> Option<FastStr> {
         let key = key.strip_prefix(prefix)?;
-        let mut buf = String::with_capacity(key.len());
+
+        // checks if we can use the inline buffer to reduce heap allocations
+        if key.len() <= FASTSTR_INLINE_SIZE {
+            let mut inline_buf = [0u8; FASTSTR_INLINE_SIZE];
+            self.to_rpc_format(key, &mut inline_buf);
+            return Some(unsafe { FastStr::new_u8_slice_unchecked(&inline_buf[..key.len()]) });
+        }
+
+        let mut buf = Vec::with_capacity(key.len());
+        unsafe {
+            buf.set_len(key.len());
+        }
         self.to_rpc_format(key, &mut buf);
-        Some(FastStr::from_string(buf))
+        unsafe { Some(FastStr::from_vec_u8_unchecked(buf)) }
     }
 }
 
 impl Converter for HttpConverter {
+    #[inline]
     fn add_persistent_prefix(&self, key: &str) -> FastStr {
         self.add_prefix_and_to_http_format(HTTP_PREFIX_PERSISTENT, key)
     }
 
+    #[inline]
     fn add_transient_prefix(&self, key: &str) -> FastStr {
         self.add_prefix_and_to_http_format(HTTP_PREFIX_TRANSIENT, key)
     }
 
+    #[inline]
     fn add_backward_prefix(&self, key: &str) -> FastStr {
         self.add_prefix_and_to_http_format(HTTP_PREFIX_BACKWARD, key)
     }
 
+    #[inline]
     fn remove_persistent_prefix(&self, key: &str) -> Option<FastStr> {
         self.remove_prefix_and_to_rpc_format(HTTP_PREFIX_PERSISTENT, key)
     }
 
+    #[inline]
     fn remove_transient_prefix(&self, key: &str) -> Option<FastStr> {
         self.remove_prefix_and_to_rpc_format(HTTP_PREFIX_TRANSIENT, key)
     }
 
+    #[inline]
     fn remove_backward_prefix(&self, key: &str) -> Option<FastStr> {
         self.remove_prefix_and_to_rpc_format(HTTP_PREFIX_BACKWARD, key)
     }
@@ -243,15 +338,21 @@ mod convert_tests {
 
     impl HttpConverter {
         fn to_http_format_string(&self, key: &str) -> String {
-            let mut buf = String::with_capacity(key.len());
+            let mut buf = Vec::with_capacity(key.len());
+            unsafe {
+                buf.set_len(key.len());
+            }
             self.to_http_format(key, &mut buf);
-            buf
+            String::from_utf8(buf).unwrap()
         }
 
         fn to_rpc_format_string(&self, key: &str) -> String {
-            let mut buf = String::with_capacity(key.len());
+            let mut buf = Vec::with_capacity(key.len());
+            unsafe {
+                buf.set_len(key.len());
+            }
             self.to_rpc_format(key, &mut buf);
-            buf
+            String::from_utf8(buf).unwrap()
         }
     }
 
