@@ -2,6 +2,7 @@
 
 [![Crates.io](https://img.shields.io/crates/v/metainfo)](https://crates.io/crates/metainfo)
 [![Documentation](https://docs.rs/metainfo/badge.svg)](https://docs.rs/metainfo)
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/cloudwego/metainfo)
 [![License](https://img.shields.io/crates/l/metainfo)](#license)
 [![Build Status][actions-badge]][actions-url]
 
