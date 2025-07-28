@@ -64,7 +64,7 @@ impl<'a, K, V> Entry<'a, K, V> {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct TypeMap {
     inner: FxHashMapRand<TypeId, AnyObject>,
 }
